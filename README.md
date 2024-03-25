@@ -19,7 +19,7 @@ The UPenn Fire Department Team is building a semi-autonomous remote controlled f
 
 What is the problem that you are trying to solve? Why is this project interesting? What is the intended purpose?
 
-The UPenn Firetruck will put an end to fires that are normally inaccessible to humans, and/or supervise over areas to detect fires. This project incorporates multiple different sensors and actuators, including sensors for heat and distance, as well as actuators for drive, steering, aiming, and blasting water.
+The UPenn Firetruck will put an end to fires that are normally inaccessible to humans, and/or supervise over areas to detect fires. This project incorporates multiple different sensors and actuators, including sensors for heat and distance, as well as actuators for drive, steering, aiming, and blasting water, meaning that it is a culmination of many of the different, interesting means of control we have learnt through the semester, along with some more. Its intended purpose is to find heat sources (fires) and cool them down (with water).
 
 ### 3. Goals
 
@@ -73,17 +73,19 @@ The major components we will need are:
 What is your metric for evaluating how well your product/solution solves the problem? Think critically on this section. Having a boolean metric such as “it works” is not very useful. This is akin to making a speaker and if it emits sound, albeit however terrible and ear wrenching, declare this a success.
 It is recommended that your project be something that you can take pride in. Oftentimes in interviews, you will be asked to talk about projects you have worked on.
 
+The measures of success we will have for this problem are twofold: movement and sensing. The wireless communication and actuators on the car will work towards the movement: being able to control the car remotely is critical to overall performance, as is it being able to drive. Aiming the water turret is critical as well, but could possibly be sidestepped with driving to aim. The thermal imaging and ultrasonic sensor will help with sensing: being able to determine where the fire is with relative accuracy, and preventing the firetruck from ramming itself into a wall would be nice as well, but can also be sidestepped with rugged design. Waterproofing is an auxiliary goal, but would be nice to prevent single-use electronics.
+
 ### 11. Timeline
 
 This section is to help guide your progress over the next few weeks. Feel free to adjust and edit the table below to something that would be useful to you. Really think about what you want to accomplish by the first milestone.
 
 | **Week**            | **Task** | **Assigned To**    |
 |----------           |--------- |------------------- |
-| Week 1: 3/24 - 3/31 |          |                    |
-| Week 2: 4/1 - 4/7   |          |                    |
-| Week 3: 4/8 - 4/14  |          |                    |
-| Week 4: 4/15 - 4/21 |          |                    |
-| Week 5: 4/22 - 4/26 |          |                    |
+| Week 1: 3/24 - 3/31 |  Mechanical Designs and hardware/software layout  |   Isaac and Oliver, respectively   |
+| Week 2: 4/1 - 4/7   |  Fabrication and Motor control started; sensor and wireless communication basics  |     Isaac and Oliver, respectively           |
+| Week 3: 4/8 - 4/14  |  Fabrication finished and motor control finalized; overarching control (sensing and actuating) logic finished    |    Isaac and Oliver, respectively      |
+| Week 4: 4/15 - 4/21 |   First milestone goals (see above)   |     Team effort     |
+| Week 5: 4/22 - 4/26 |   Final goals (see above)   |        Team effort   |
 
 ### 12. Proposal Presentation
 
