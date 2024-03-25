@@ -5,7 +5,7 @@
     * Team Members: Isaac Gray, Oliver Hendrych
     * Github Repository URL: https://github.com/ese3500/final-project-upenn-fire-department
     * Github Pages Website URL: [for final submission]
-    * Description of hardware: (embedded hardware, laptop, etc) 
+    * Description of hardware: See '9. Components' below 
 
 ## Final Project Proposal
 
@@ -31,9 +31,79 @@ The UPenn Firetruck will be constructed such that it can act in two modes: Manua
 
 Formulate key software requirements here.
 
+#### Overview
+
+The project will mainly revolve around taking in sensor input to determine motor controlled output, and using that feedback loop to operate. Wireless communication and the ultrasonic sensor will inform movement, which will cause the readings from the ultrasonic sensor and thermal camera to change. The thermal imaging will inform the water turret aiming and firing, which will in turn change the thermals seen by the camera.
+
+#### Users
+
+The users are anybody who needs to be able to put out fires in cramped spaces and/or autonomously. This could be people with complex cooling/heating systems, with cramped access ducts. Or even farmers overseeing grain stockpiles in hot, dry summers, who want to be able to put out fires without flooding their whole crop with water and causing it all to mold. And of course, the UPenn Firetruck is another tool for regular firefighters to add to their arsenal that can be applied in a situation where debris has caused areas to become inaccessible to humans.
+
+#### Definitions, Abbreviations
+
+* MT = Motors used to drive
+* MC = Microcontroller
+* RC = Remote Communication
+* TI = Thermal Imaging
+* US = Ultrasonic sensor
+* WT = Water turret (and the motors used to drive it)
+* WG = Water gun (and the motor used to fire it)
+* WP = Waterproofing (shell for other means)
+
+#### Functionaility
+
+SRS 01 - 'The US shall be sampled as often as possible, and results smoothed/averaged to reduce the effect of noise'
+
+SRS 02 - 'MT shall be controlled using PWM outputs from MC to determine speed'
+
+SRS 03 - 'The hottest heat source in the TI shall be indentified and targeted by WT'
+
+SRS 04 - 'If a sufficiently hot heat source is identifed by `SRS 03`, WG shall be fired'
+
+SRS 05 - 'Output from US as specified in `SRS 01` shall prevent MT from driving device into the wall'
+
+SRS 06 - 'Along with US input from `SRS 05` and `SRS 01`, RC shall inform output to MT using tank controls'
+
+SRS 07 - 'Manual control of WT and WG should be possible through use of RC'
+
 ### 5. Hardware Requirements Specification (HRS)
 
 Formulate key hardware requirements here.
+
+#### Overview
+
+The hardware shall be broken down into two parts: mechanical and electrical. The main goal of the mechanical section is to provide avenues to sense and control using the electrical. This includes mounting of MT, US and TI, as well as a mechanism to control WT and WG. Finally, the mechnical section should provide at least some level of WP. The electrical section will define the elements used to control each of these actuators, and the sensors that inform the MC.
+
+#### Definitions, Abbreviations
+
+* MT = Motors used to drive
+* MC = Microcontroller
+* RC = Remote Communication
+* TI = Thermal Imaging
+* US = Ultrasonic sensor
+* WT = Water turret (and the motors used to drive it)
+* WG = Water gun (and the motor used to fire it)
+* WP = Waterproofing (shell for other means)
+
+#### Functionaility
+
+HRS 01 - 'MT shall be controlled through driving circuit, which is in turn shall be driven by MC'
+
+HRS 02 - 'RC shall be provided by Feather ESP32 or other means, connected to MC'
+
+HRS 03 - 'TI shall be provided by camera, which should be cheap and low resolution'
+
+HRS 04 - 'TI shall be connected to MC, and communicate through SPI'
+
+HRS 05 - 'TI shall be mounted to front of device, or should be mounted to WT'
+
+HRS 06 - 'US shall be mounted to front of device, or optionally to mounted to WT'
+
+HRS 07 - 'WT shall provide method of yaw rotation of WG'
+
+HRS 08 - 'WT should provide method of pitch rotation of WG, or WG should be controllable in distace'
+
+HRS 09 - 'WP shall provide protection of MT, MC, RC, TI, and US from liquids shot by WG'
 
 ### 6. MVP Demo
 
