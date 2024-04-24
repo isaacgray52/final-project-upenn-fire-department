@@ -23,7 +23,9 @@
 #define GET_BIT(REG, FLAG) (REG & (1 << FLAG))
 
 #define IR_ADDRESS 0x69
+#define IR_TEMP_REG 0x80
 #define AVG_NUM_VALS 4
+#define FIRE_THRESHOLD 110
 
 char buf[80];
 
@@ -61,6 +63,7 @@ uint8_t TWI_data_received;
 
 uint16_t temperatureVals[64];
 uint8_t temperatureCounter = 0;
+uint8_t read_high = false;
 
 uint32_t USavgVals[AVG_NUM_VALS];
 uint32_t USavg = 0;
@@ -199,13 +202,40 @@ int main(void)
     {
 		if (TWI_send_message) {
 			if (!TWI_first_time) {
-				// while (!(TWCR0 & (1 << TWINT)));
+				if (temperatureCounter == 63 && read_high) {
+					uint16_t temp_max = 0;
+					uint8_t temp_max_idx = 0;
+					for (uint8_t i = 0; i < 64; i++) {
+						if (temperatureVals[i] > temp_max) {
+							temp_max = temperatureVals[i];
+							temp_max_idx = i;
+						}
+						// snprintf(buf, sizeof(buf), "%02hu: %u\n", i, temperatureVals[i]);
+						// UART_putstring(buf);
+					}
+					snprintf(buf, sizeof(buf), "max_temp: %u\n", temp_max);
+					UART_putstring(buf);
+					snprintf(buf, sizeof(buf), "max_temp_idx: %hu\n", temp_max_idx);
+					UART_putstring(buf);
+					if (temp_max > FIRE_THRESHOLD) {
+						UART_putstring("FIIIIIRREEE!!!!\n\n");
+					}
+					// while (!(TWCR0 & (1 << TWINT)));
+				}
+				if (read_high) {
+					temperatureVals[temperatureCounter] = (temperatureVals[temperatureCounter] & 0x00FF) | ((TWI_data_received & 0x0F) << 8);
+					temperatureCounter = (temperatureCounter + 1) % 64;
+				} else {
+					temperatureVals[temperatureCounter] = (temperatureVals[temperatureCounter] & 0xFF00) | TWI_data_received;
+				}
+				read_high = !read_high;
 			}
 			TWI_first_time = false;
 			TWI_send_message = false;
 			TWI_send_SLA = true;
-			snprintf(buf, sizeof(buf), "dat: %hu\n", TWI_data_received);
-			UART_putstring(buf);
+			TWI_addr_to_read = IR_TEMP_REG + (temperatureCounter << 1) + (read_high ? 1 : 0);
+			// snprintf(buf, sizeof(buf), "addr_to_read: %hX\n", TWI_addr_to_read);
+			// UART_putstring(buf);
 			TWCR0 = (1 << TWINT) | (1 << TWSTA) | (1 << TWEN) | (1 << TWIE);//0b10100101;
 		}
 		if (counter == 1000) {
@@ -329,7 +359,7 @@ ISR(TWI0_vect) {
 		if ((TWSR0 & 0xF8) != 0x18) {
 			TWI_data_received = 21;
 		}
-		TWDR0 = 0x90; // T01L
+		TWDR0 = TWI_addr_to_read;
 		TWCR0 = (1 << TWINT) | (1 << TWEN) | (1 << TWIE);
 		TWI_send_data_addr = false;
 		TWI_send_data_stop = true;
