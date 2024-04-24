@@ -13,6 +13,10 @@
 #define IR_TEMP_REG 0x80
 #define US_AVG_NUM_VALS 4
 #define FIRE_THRESHOLD 110
+#define MIN_DIS_CM 10
+#define MAX_DIS_CM 40
+#define MIN_DIS_US (MIN_DIS_CM * 58)
+#define MAX_DIS_US (MAX_DIS_CM * 58)
 
 typedef enum TWI_STATE_t {
 	SEND_MESSAGE,

@@ -28,10 +28,10 @@ uint8_t echoOverflows = 0;
 uint16_t echoStartTime = 0;
 uint16_t echoEndTime = 0;
 
-bool outputON = false;
+bool servoOutputOn = false;
 
-uint8_t servoHighTime = 200;
-uint8_t servoLowTime = 100;
+uint8_t servoHighTime = 50;
+uint8_t servoLowTime = 50;
 
 bool triggerPulled = true;
 
@@ -50,6 +50,8 @@ uint16_t temperature_values[64];
 uint8_t temperature_idx = 0;
 uint16_t temperature_max = 0;
 uint8_t temperature_max_idx = 0;
+#define temperature_max_col (temperature_max_idx / 8)
+#define temperature_max_row (temperature_max_idx % 8)
 bool fire_detected = false;
 
 uint32_t US_avg_values[US_AVG_NUM_VALS];
@@ -63,6 +65,7 @@ uint32_t timeDifferenceUS(uint32_t startTime, uint32_t endTime, uint8_t overflow
 }
 
 uint16_t counter = 0;
+uint8_t outputCounter2 = 0;
 
 
 void initialize(void) {
@@ -156,8 +159,8 @@ void initialize(void) {
 
     /** TWI (I2C) **/
     // for communicating with thermal camera
-	// Using TWI0
 
+	// Using TWI0
 	SET_ZERO(PRR0, PRTWI0);
 
 	// 200kHz scl clock frequency
@@ -200,14 +203,11 @@ int main(void)
 						// snprintf(uart_buf, sizeof(uart_buf), "%02hu: %u\n", i, temperature_values[i]);
 						// UART_putstring(uart_buf);
 					}
-					snprintf(uart_buf, sizeof(uart_buf), "max temp: %u\n", temperature_max);
-					UART_putstring(uart_buf);
-					snprintf(uart_buf, sizeof(uart_buf), "max temp idx: %hu\n", temperature_max_idx);
-					UART_putstring(uart_buf);
+					// snprintf(uart_buf, sizeof(uart_buf), "max temp: %u\n", temperature_max);
+					// UART_putstring(uart_buf);
+					// snprintf(uart_buf, sizeof(uart_buf), "max temp idx: %hu\n", temperature_max_idx);
+					// UART_putstring(uart_buf);
 					fire_detected = temperature_max > FIRE_THRESHOLD;
-					if (fire_detected) {
-						UART_putstring("FIIIIIRREEE!!!!\n\n");
-					}
 					// while (!(TWCR0 & (1 << TWINT)));
 				}
 				if (TWI_read_high_byte) {
@@ -223,20 +223,34 @@ int main(void)
 			TWI_addr_to_read = IR_TEMP_REG + (temperature_idx << 1) + (TWI_read_high_byte ? 1 : 0);
 			// snprintf(uart_buf, sizeof(uart_buf), "addr_to_read: %hX\n", TWI_addr_to_read);
 			// UART_putstring(uart_buf);
-			TWCR0 = (1 << TWINT) | (1 << TWSTA) | (1 << TWEN) | (1 << TWIE);//0b10100101;
+			TWCR0 = (1 << TWINT) | (1 << TWSTA) | (1 << TWEN) | (1 << TWIE); // send start
 		}
-		if (counter == 1000) {
-			// snprintf(uart_buf, sizeof(uart_buf), "dat2: %hu\n", TWI_data_received2);
-			// UART_putstring(uart_buf);
-			// counter = 0;
-			// if (triggerPulled) {
-			// 	servoHighTime = 70;
-			// 	servoLowTime = 35;
-			// } else {
-			// 	servoHighTime = 50;
-			// 	servoLowTime = 50;
-			// }
-			// triggerPulled = !triggerPulled;
+		if (counter == 20000) {
+			counter = 0;
+			if (fire_detected) {
+				if (outputCounter2 == 0) {
+					UART_putstring("Fire Detected!\n");
+				}
+			}
+			if ((MIN_DIS_US < US_avg) && (US_avg < MAX_DIS_US)) {
+				if (outputCounter2 == 0) {
+					UART_putstring("Ready to fire!\n");
+				}
+			}
+			if (fire_detected && (MIN_DIS_US < US_avg) && (US_avg < MAX_DIS_US)) {
+				if (outputCounter2 == 0) {
+					UART_putstring("Firing!\n");
+				}
+				if (triggerPulled) {
+					servoHighTime = 70;
+					servoLowTime = 35;
+				} else {
+					servoHighTime = 50;
+					servoLowTime = 50;
+				}
+				triggerPulled = !triggerPulled;
+			}
+			outputCounter2 = (outputCounter2 + 1) % 50;
 		} else {
 			counter++;
 		}
@@ -290,39 +304,39 @@ ISR(TIMER1_CAPT_vect) {
 			//snprintf(message, 100, "pressTime=%5u \tendTime=%5u \toverflows=%2u \tdiffUS=%5lu \tcm=%3lu \tin=%3lu\n", echoStartTime, echoEndTime, echoOverflows, diffUS, diffUS / 58, diffUS / 148);
 			snprintf(uart_buf, sizeof(uart_buf), "US_avg=%5lu \tcm=%3u\n", US_avg, cm);
 			UART_putstring(uart_buf);
-			if (cm > 10) {
-				if (triggerPulled) {
-					servoHighTime = 70;
-					servoLowTime = 35;
-				} else {
-					servoHighTime = 50;
-					servoLowTime = 50;
-				}
-				triggerPulled = !triggerPulled;
-			}
+			// if (cm > 10) {
+			// 	if (triggerPulled) {
+			// 		servoHighTime = 70;
+			// 		servoLowTime = 35;
+			// 	} else {
+			// 		servoHighTime = 50;
+			// 		servoLowTime = 50;
+			// 	}
+			// 	triggerPulled = !triggerPulled;
+			// }
 		}
 		
 	}
 }
 
 ISR(TIMER1_OVF_vect) {
-	//UART_send('X');
 	echoOverflows++;
 	if (trigSent && echoOverflows > 5 && (!echoStarted)) {
+		UART_send('X');
 		trigSent = false; // resend trig
 		echoOverflows = 0;
 	}
 }
 
 ISR(TIMER0_OVF_vect) {
-    if (outputON) {
+    if (servoOutputOn) {
         SET_ZERO(PORTD, PORTD6);
         OCR0A=servoHighTime;
     } else {
         SET_ONE(PORTD, PORTD6);
         OCR0A=servoLowTime;
     }
-    outputON = !outputON;
+    servoOutputOn = !servoOutputOn;
 
 }
 
