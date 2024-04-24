@@ -15,17 +15,7 @@
 #include <stdio.h>
 
 #include "uart.h"
-
-#define SET_ONE(REG, FLAG) REG |= (1 << FLAG)
-#define SET_ZERO(REG, FLAG) REG &= ~(1 << FLAG)
-#define SET_FLIP(REG, FLAG) REG ^= (1 << FLAG)
-
-#define GET_BIT(REG, FLAG) (REG & (1 << FLAG))
-
-#define IR_ADDRESS 0x69
-#define IR_TEMP_REG 0x80
-#define AVG_NUM_VALS 4
-#define FIRE_THRESHOLD 110
+#include "main.h"
 
 char buf[80];
 
@@ -48,6 +38,10 @@ uint8_t lowTime = 100;
 bool isTriggered = true;
 
 uint8_t TWI_addr_to_read = 0;
+
+TWI_state TWI_State = SEND_MESSAGE;
+
+uint8_t TWI_Error = 0;
 
 bool TWI_send_message = true;
 bool TWI_send_SLA = false;
@@ -200,7 +194,7 @@ int main(void)
     /* Replace with your application code */
     while (1) 
     {
-		if (TWI_send_message) {
+		if (TWI_State == SEND_MESSAGE) {
 			if (!TWI_first_time) {
 				if (temperatureCounter == 63 && read_high) {
 					uint16_t temp_max = 0;
@@ -231,8 +225,7 @@ int main(void)
 				read_high = !read_high;
 			}
 			TWI_first_time = false;
-			TWI_send_message = false;
-			TWI_send_SLA = true;
+			TWI_State = SEND_SLA;
 			TWI_addr_to_read = IR_TEMP_REG + (temperatureCounter << 1) + (read_high ? 1 : 0);
 			// snprintf(buf, sizeof(buf), "addr_to_read: %hX\n", TWI_addr_to_read);
 			// UART_putstring(buf);
@@ -340,69 +333,53 @@ ISR(TIMER0_OVF_vect) {
 }
 
 ISR(TWI0_vect) {
-	// TWI_data_received = 1;
-	// if (TWI_data_received > 10) {
-	// 	return;
-	// }
-	if (TWI_send_SLA) {
-		TWI_data_received = 2;
+	if (TWI_State == SEND_SLA) {
 		if ((TWSR0 & 0xF8) != 0x08) {
-			TWI_data_received = 20;
+			TWI_Error = 1;
 		}
 		// UART_putstring("send_SLA");
 		TWDR0 = (IR_ADDRESS << 1) | 0b0; // SLA_W
 		TWCR0 = (1 << TWINT) | (1 << TWEN) | (1 << TWIE);
-		TWI_send_SLA = false;
-		TWI_send_data_addr = true;
-	} else if (TWI_send_data_addr) {
-		TWI_data_received = 3;
+		TWI_State = SEND_DATA_ADDR;
+	} else if (TWI_State == SEND_DATA_ADDR) {
 		if ((TWSR0 & 0xF8) != 0x18) {
-			TWI_data_received = 21;
+			TWI_Error = 2;
 		}
 		TWDR0 = TWI_addr_to_read;
 		TWCR0 = (1 << TWINT) | (1 << TWEN) | (1 << TWIE);
-		TWI_send_data_addr = false;
-		TWI_send_data_stop = true;
-	} else if (TWI_send_data_stop) {
-		TWI_data_received = 4;
+		TWI_State = SEND_DATA_STOP;
+	} else if (TWI_State == SEND_DATA_STOP) {
 		if ((TWSR0 & 0xF8) != 0x28) {
-			TWI_data_received = 22;
+			TWI_Error = 3;
 		}
 		// TWCR0 = (1 << TWINT) | (1 << TWSTO) | (1 << TWEN) | (1 << TWIE); // stop
-		TWI_send_data_stop = false;
-		TWI_receive_data_start = true;
-	}else if (TWI_receive_data_start) {
+		TWI_State = RECEIVE_DATA_START;
+	}else if (TWI_State == RECEIVE_DATA_START) {
 		TWI_data_received = 5;
 		// if ((TWSR0 & 0xF8) != 0x) {
-		// 	TWI_data_received = 23;
+		// 	TWI_Error = 4;
 		// }
-		TWCR0 = (1 << TWINT) | (1 << TWSTA) | (1 << TWEN) | (1 << TWIE); // repeated start
-		TWI_receive_data_start = false;
-		TWI_receive_data_send_SLA = true;
-	} else if (TWI_receive_data_send_SLA) {
-		TWI_data_received = 6;
+		TWCR0 = (1 << TWINT) | (1 << TWSTA) | (1 << TWEN) | (1 << TWIE); // (repeated) start
+		TWI_State = RECEIVE_DATA_SEND_SLA;
+	} else if (TWI_State == RECEIVE_DATA_SEND_SLA) {
 		if ((TWSR0 & 0xF8) != 0x10) {
-			TWI_data_received = 24;
+			TWI_Error = 5;
 		}
 		TWDR0 = (IR_ADDRESS << 1) | 0b1; // SLA_R
 		TWCR0 = (1 << TWINT) | (1 << TWEN) | (1 << TWIE);
-		TWI_receive_data_send_SLA = false;
-		TWI_receive_data_sent_SLA = true;
-	} else if (TWI_receive_data_sent_SLA) {
-		TWI_data_received = 7;
+		TWI_State = RECEIVE_DATA_SENT_SLA;
+	} else if (TWI_State == RECEIVE_DATA_SENT_SLA) {
 		if ((TWSR0 & 0xF8) != 0x40) {
-			TWI_data_received = TWSR0 & 0xF8;
-		}
+			TWI_Error = 6;
+		} 
 		TWCR0 = (1 << TWINT) | (1 << TWEN) | (1 << TWIE);// | (1 << TWEA);
-		TWI_receive_data_sent_SLA = false;
-		TWI_receive_data_receive = true;
-	} else if (TWI_receive_data_receive) {
+		TWI_State = RECEIVE_DATA_RECEIVE;
+	} else if (TWI_State == RECEIVE_DATA_RECEIVE) {
 		TWI_data_received = TWDR0;
 		if ((TWSR0 & 0xF8) != 0x58) {
-			TWI_data_received = (TWSR0 & 0xF8) | 0x1;
+			TWI_Error = 7;
 		}
 		TWCR0 = (1 << TWINT) | (1 << TWSTO) | (1 << TWEN); // stop
-		TWI_receive_data_receive = false;
-		TWI_send_message = true;
+		TWI_State = SEND_MESSAGE;
 	}
 }
