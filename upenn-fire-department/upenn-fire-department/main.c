@@ -77,6 +77,7 @@ uint32_t timeDifferenceUS(uint32_t startTime, uint32_t endTime, uint8_t overflow
 
 uint16_t counter = 0;
 uint8_t outputCounter2 = 0;
+uint8_t outputCounter3 = 0;
 
 bool autonomous = true;
 
@@ -139,6 +140,9 @@ void initialize(void) {
 	SET_ZERO(DDRC, DDRC3); // BR
 	SET_ZERO(DDRB, DDRB1); // Autonomous
 	SET_ZERO(DDRB, DDRB2); // Manual trigger
+
+	// fire detected led output
+	SET_ONE(DDRD, DDRD7);
 
 	/** FEATHER INTERRUPTS **/
 
@@ -289,6 +293,9 @@ int main(void)
 				if (temperature_idx == 63 && TWI_read_high_byte) {
 					temperature_max = 0;
 					for (uint8_t i = 0; i < 64; i++) {
+						if (i == 48 || i == 56 || i == 8 || i == 15) {
+							continue;
+						}
 						if (temperature_values[i] > temperature_max) {
 							temperature_max = temperature_values[i];
 							temperature_max_idx = i;
@@ -298,11 +305,17 @@ int main(void)
 					}
 					// snprintf(uart_buf, sizeof(uart_buf), "max temp: %u\n", temperature_max);
 					// UART_putstring(uart_buf);
-					// snprintf(uart_buf, sizeof(uart_buf), "max temp idx: %hu\n", temperature_max_idx);
-					// UART_putstring(uart_buf);
+					// outputCounter3 = (outputCounter3 + 1) % 40;
+					// if (outputCounter3) {
+					// 	snprintf(uart_buf, sizeof(uart_buf), "max temp:%03u\t idx: %h02u\t col:%hu\t row:%hu\n", temperature_max, temperature_max_idx, temperature_max_col, temperature_max_row);
+					// 	UART_putstring(uart_buf);
+					// }
 					fire_detected = temperature_max > FIRE_THRESHOLD;
 					if (fire_detected) {
 						UART_send('F');
+						SET_ONE(PORTD, PORTD7);
+					} else {
+						SET_ZERO(PORTD, PORTD7);
 					}
 					// while (!(TWCR0 & (1 << TWINT)));
 				}
@@ -326,7 +339,7 @@ int main(void)
 			TWI_first_time = true;
 			TWI_state = SEND_MESSAGE;
 		}
-		autonomous = true;//GET_BIT(PINB, PINB1);
+		autonomous = GET_BIT(PINB, PINB1);//;
 		handleMoveLogic();
 		counter = (counter + 1) % 65000;
 		if (counter == 0) {
@@ -345,8 +358,8 @@ int main(void)
 					// UART_putstring("Aimed!\n");
 				}
 			}
-			if ((autonomous && fire_detected && GOOD_FIRE_DIS && (2 <= temperature_max_col) && (temperature_max_col <= 5))
-			|| (!autonomous && GET_BIT(PINB, PINB2) && US_avg > MIN_FIRE_DIS_US)) {
+			if ((autonomous && fire_detected && GOOD_FIRE_DIS && (1 <= temperature_max_col) && (temperature_max_col <= 6))
+			|| (!autonomous && fire_detected && US_avg > MIN_FIRE_DIS_US)) {
 				if (outputCounter2 == 0) {
 					// UART_putstring("Firing!\n");
 				}
@@ -384,20 +397,20 @@ void handleMoveLogic(void) {
 	
 	if (autonomous) {
 		if (fire_detected) {
-			if (temperature_max_col <= 0) {
-				// turn left
-				// BL
-				MOVE_BL();
-				// FR
-				MOVE_FR();
-			} else if (temperature_max_col >= 7) {
+			if (false ) { // temperature_max_col <= 0
 				// turn right
 				// FL
 				MOVE_FL();
 				// BR
 				MOVE_BR();
+			} else if (false) { // temperature_max_col >= 7
+				// turn left
+				// BL
+				MOVE_BL();
+				// FR
+				MOVE_FR();
 			} else {
-				if (US_avg > MAX_FIRE_DIS_US && US_avg > MIN_DRIVE_DIS_US) {
+				if (false) { // US_avg > MAX_FIRE_DIS_US && US_avg > MIN_DRIVE_DIS_US
 					// forward
 					MOVE_FL();
 					MOVE_FR();
