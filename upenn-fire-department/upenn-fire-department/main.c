@@ -60,6 +60,13 @@ uint8_t US_avg_idx = 0;
 #define GOOD_FIRE_DIS ((MIN_FIRE_DIS_US < US_avg) && (US_avg < MAX_FIRE_DIS_US))
 #define GOOD_DRIVE_DIS ((MIN_DRIVE_DIS_US < US_avg) && (US_avg < MAX_DRIVE_DIS_US))
 
+bool timer3_increasing_ocr = true;
+uint16_t timer3_ocr_val = TIMER3_OCR_MIN;
+uint16_t timer3_ocr_counter_counter = 0;
+
+bool leds_on = false;
+uint16_t leds_on_counter = 0;
+
 uint8_t outputCounter = 0;
 
 uint32_t timeDifferenceUS(uint32_t startTime, uint32_t endTime, uint8_t overflowCount) {
@@ -70,6 +77,24 @@ uint16_t counter = 0;
 uint8_t outputCounter2 = 0;
 
 bool autonomous = false;
+
+#define MOVE_FL() SET_ONE(PORTB, PORTB4); \
+					SET_ZERO(PORTB, PORTB5)
+
+#define MOVE_BL() SET_ZERO(PORTB, PORTB4); \
+					SET_ONE(PORTB, PORTB5)
+
+#define MOVE_NL() SET_ZERO(PORTB, PORTB4); \
+					SET_ZERO(PORTB, PORTB5)
+
+#define MOVE_FR() SET_ONE(PORTD, PORTD3); \
+					SET_ZERO(PORTD, PORTD4)
+
+#define MOVE_BR() SET_ZERO(PORTD, PORTD3); \
+					SET_ONE(PORTD, PORTD4)
+
+#define MOVE_NR() SET_ZERO(PORTD, PORTD3); \
+					SET_ZERO(PORTD, PORTD4)
 
 void initialize(void) {
 	cli();
@@ -87,6 +112,12 @@ void initialize(void) {
 
     // output for timer0 PWM for servo
     SET_ONE(DDRD, DDRD6);
+
+	// output for timer3 b (buzzer)
+	SET_ONE(DDRD, DDRD2);
+	SET_ONE(PORTD, PORTD2);
+	// output for LEDs
+	SET_ONE(DDRE, DDRE0);
 
 	// set outputs for TWI
 	SET_ONE(DDRC, DDRC4); // SDA0
@@ -135,8 +166,6 @@ void initialize(void) {
     // SET_ONE(TCCR0A, COM0A0);
 
     OCR0A = 200;
-
-    // SET_ONE(PORTD, PORTD6);
 	
 	/** TIMER 1 **/
 	
@@ -181,6 +210,34 @@ void initialize(void) {
 	
 	// Set OCRA for output A compare match interrupt for timer 2 (20 ticks = 10us)
 	OCR2A = 30;
+
+	/** TIMER 3 **/
+
+	// Set a prescaler of 64 (62.5kHz)
+	SET_ZERO(TCCR3B, CS32);
+	SET_ONE(TCCR3B, CS31);
+	SET_ONE(TCCR3B, CS30);
+
+	// Set CTC mode (compare with OCR3A)
+	SET_ZERO(TCCR3B, WGM33);
+	SET_ONE(TCCR3B, WGM32);
+	SET_ZERO(TCCR3A, WGM31);
+	SET_ZERO(TCCR3A, WGM30);
+
+	// Toggle OC3B (PORTD2) on compare match
+	SET_ZERO(TCCR3A, COM3B1);
+	SET_ONE(TCCR3A, COM3B0);
+
+	// enable overflow interrupt
+	// SET_ONE(TIMSK3, TOIE3);
+
+	// enable compare match interrupt
+	SET_ONE(TIMSK3, OCIE3A);
+
+	// 650Hz
+	OCR3A = TIMER3_OCR_MIN;
+	timer3_increasing_ocr = true;
+	timer3_ocr_val = TIMER3_OCR_MIN;
 
     /** TWI (I2C) **/
     // for communicating with thermal camera
@@ -235,7 +292,7 @@ int main(void)
 					// UART_putstring(uart_buf);
 					fire_detected = temperature_max > FIRE_THRESHOLD;
 					if (fire_detected) {
-						UART_send('F');
+						// UART_send('F');
 					}
 					// while (!(TWCR0 & (1 << TWINT)));
 				}
@@ -259,7 +316,7 @@ int main(void)
 		if (counter == 0) {
 			if (fire_detected) {
 				if (outputCounter2 == 0) {
-					UART_putstring("Fire Detected!\n");
+					// UART_putstring("Fire Detected!\n");
 				}
 			}
 			if (GOOD_FIRE_DIS) {
@@ -295,29 +352,39 @@ void handleMoveLogic(void) {
 			if (temperature_max_col <= 1) {
 				// turn right
 				// FL
+				MOVE_FL();
 				// BR
+				MOVE_BR();
 			} else if (temperature_max_col >= 6) {
 				// turn left
 				// BL
+				MOVE_BL();
 				// FR
+				MOVE_FR();
 			} else {
-				if (US_avg < MAX_FIRE_DIS_US) {
+				if (US_avg < MAX_FIRE_DIS_US && US_avg > MIN_DRIVE_DIS_US) {
 					// forward
+					MOVE_FL();
+					MOVE_FR();
 				} else {
 					// don't move
+					MOVE_NL();
+					MOVE_NR();
 				}
 			}
 		} else {
 			if (GOOD_DRIVE_DIS) {
 				// forward
 				// FL
-				SET_ONE(PORTB, PORTB4);
-				SET_ZERO(PORTB, PORTB5);
+				MOVE_FL();
 				// FR
-				SET_ONE(PORTD, PORTD3);
-				SET_ZERO(PORTD, PORTD4);
+				MOVE_FR();
 			} else {
 				// turn right
+				// FL
+				MOVE_FL();
+				// BR
+				MOVE_BR();
 			}
 		}
 	} else {
@@ -437,6 +504,36 @@ ISR(TIMER0_OVF_vect) {
         OCR0A=servoLowTime;
     }
     servoOutputOn = !servoOutputOn;
+}
+
+// do buzzer and LEDs
+ISR(TIMER3_COMPA_vect) {
+	// UART_send('S');
+	timer3_ocr_counter_counter = (timer3_ocr_counter_counter + 1) % TIMER3_OCR_MOV_RATE;
+	if (timer3_ocr_counter_counter == 0) {
+		if (timer3_increasing_ocr) {
+			timer3_ocr_val++;
+		} else {
+			timer3_ocr_val--;
+		}
+		if (timer3_ocr_val >= TIMER3_OCR_MAX) {
+			timer3_increasing_ocr = false;
+		}
+		if (timer3_ocr_val <= TIMER3_OCR_MIN) {
+			timer3_increasing_ocr = true;
+		}
+		OCR3A = timer3_ocr_val;
+		leds_on_counter = (leds_on_counter + 1) % LED_FLICKER_PERIOD;
+		if (leds_on_counter == 0) {
+			leds_on = !leds_on;
+			// UART_send('l');
+			if (leds_on) {
+				SET_ONE(PORTE, PORTE0);
+			} else {
+				SET_ZERO(PORTE, PORTE0);
+			}
+		}
+	}
 }
 
 // TWI control / IR camera
