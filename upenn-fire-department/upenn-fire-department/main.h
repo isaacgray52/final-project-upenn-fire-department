@@ -12,12 +12,13 @@
 #define IR_ADDRESS 0x69
 #define IR_TEMP_REG 0x80
 #define US_AVG_NUM_VALS 4
-#define FIRE_THRESHOLD 110
+// (temp in celcius * 4)
+#define FIRE_THRESHOLD 50
 #define MIN_FIRE_DIS_CM 10
 #define MAX_FIRE_DIS_CM 40
 #define MIN_FIRE_DIS_US (MIN_FIRE_DIS_CM * 58)
 #define MAX_FIRE_DIS_US (MAX_FIRE_DIS_CM * 58)
-#define MIN_DRIVE_DIS_CM 15
+#define MIN_DRIVE_DIS_CM 25
 #define MAX_DRIVE_DIS_CM 500
 #define MIN_DRIVE_DIS_US (MIN_DRIVE_DIS_CM * 58)
 #define MAX_DRIVE_DIS_US (MAX_DRIVE_DIS_CM * 58)

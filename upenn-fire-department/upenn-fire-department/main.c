@@ -58,7 +58,9 @@ uint32_t US_avg_values[US_AVG_NUM_VALS];
 uint32_t US_avg = 0;
 uint8_t US_avg_idx = 0;
 #define GOOD_FIRE_DIS ((MIN_FIRE_DIS_US < US_avg) && (US_avg < MAX_FIRE_DIS_US))
-#define GOOD_DRIVE_DIS ((MIN_DRIVE_DIS_US < US_avg) && (US_avg < MAX_DRIVE_DIS_US))
+#define GOOD_DRIVE_DIS ((MIN_DRIVE_DIS_US < US_avg))
+// && (US_avg < MAX_DRIVE_DIS_US)
+uint8_t TWI_watchdog = 0;
 
 bool timer3_increasing_ocr = true;
 uint16_t timer3_ocr_val = TIMER3_OCR_MIN;
@@ -76,7 +78,7 @@ uint32_t timeDifferenceUS(uint32_t startTime, uint32_t endTime, uint8_t overflow
 uint16_t counter = 0;
 uint8_t outputCounter2 = 0;
 
-bool autonomous = false;
+bool autonomous = true;
 
 #define MOVE_FL() SET_ONE(PORTB, PORTB4); \
 					SET_ZERO(PORTB, PORTB5)
@@ -280,6 +282,7 @@ int main(void)
     /* Replace with your application code */
     while (1) 
     {
+		// UART_send('m');
 		if (TWI_state == SEND_MESSAGE) {
 			// UART_send('y');
 			if (!TWI_first_time) {
@@ -316,9 +319,14 @@ int main(void)
 			TWI_addr_to_read = IR_TEMP_REG + (temperature_idx << 1) + (TWI_read_high_byte ? 1 : 0);
 			// snprintf(uart_buf, sizeof(uart_buf), "addr_to_read: %hX\n", TWI_addr_to_read);
 			// UART_putstring(uart_buf);
+			TWI_watchdog = 0;
 			TWCR0 = (1 << TWINT) | (1 << TWSTA) | (1 << TWEN) | (1 << TWIE); // send start
 		}
-		autonomous = false;//GET_BIT(PINB, PINB1);
+		if (TWI_watchdog > 9) {
+			TWI_first_time = true;
+			TWI_state = SEND_MESSAGE;
+		}
+		autonomous = true;//GET_BIT(PINB, PINB1);
 		handleMoveLogic();
 		counter = (counter + 1) % 65000;
 		if (counter == 0) {
@@ -361,22 +369,35 @@ void handleMoveLogic(void) {
 	// PORTB5  BL
 	// PORTD3  FR
 	// PORTD4  BR
+	// UART_send('h');
+	
+	// don't move
+	// if (fire_detected) {
+	// 	MOVE_NL();
+	// 	MOVE_NR();
+	// } else {
+	// 	// BL
+	// 	MOVE_BL();
+	// 	// FR
+	// 	MOVE_FR();
+	// }
+	
 	if (autonomous) {
 		if (fire_detected) {
-			if (temperature_max_col <= 1) {
-				// turn right
-				// FL
-				MOVE_FL();
-				// BR
-				MOVE_BR();
-			} else if (temperature_max_col >= 6) {
+			if (temperature_max_col <= 0) {
 				// turn left
 				// BL
 				MOVE_BL();
 				// FR
 				MOVE_FR();
+			} else if (temperature_max_col >= 7) {
+				// turn right
+				// FL
+				MOVE_FL();
+				// BR
+				MOVE_BR();
 			} else {
-				if (US_avg < MAX_FIRE_DIS_US && US_avg > MIN_DRIVE_DIS_US) {
+				if (US_avg > MAX_FIRE_DIS_US && US_avg > MIN_DRIVE_DIS_US) {
 					// forward
 					MOVE_FL();
 					MOVE_FR();
@@ -429,6 +450,7 @@ void handleMoveLogic(void) {
 			SET_ZERO(PORTD, PORTD4);
 		}
 	}
+	
 }
 
 // motor control when feather pins change
@@ -438,6 +460,7 @@ ISR(PCINT1_vect) {
 
 // send trigger
 ISR(TIMER2_COMPA_vect) {
+	// UART_send('t');
 	if (!trigSent) {
 		echoStarted = false;
 		echoEnded = false;
@@ -454,6 +477,7 @@ ISR(TIMER2_COMPA_vect) {
 
 // capture echo
 ISR(TIMER1_CAPT_vect) {
+	// UART_send('e');
 	// flip checking for rising/falling edge
 	// SET_FLIP(TCCR1B, ICES1);
 	if (GET_BIT(PINB, PINB0)) {
@@ -500,9 +524,10 @@ ISR(TIMER1_CAPT_vect) {
 
 // too long without echo response
 ISR(TIMER1_OVF_vect) {
+	// UART_send('o');
 	echoOverflows++;
 	if (trigSent && echoOverflows > 5 && (!echoStarted)) {
-		UART_send('X');
+		// UART_send('X');
 		trigSent = false; // resend trig
 		echoOverflows = 0;
 		// uint32_t diffUS = 6000;
@@ -518,6 +543,7 @@ ISR(TIMER1_OVF_vect) {
 
 // servo control
 ISR(TIMER0_OVF_vect) {
+	// UART_send('s');
     if (servoOutputOn) {
         SET_ZERO(PORTD, PORTD6);
         OCR0A=servoHighTime;
@@ -530,6 +556,7 @@ ISR(TIMER0_OVF_vect) {
 
 // do buzzer and LEDs
 ISR(TIMER3_COMPA_vect) {
+	// UART_send('{');
 	// UART_send('S');
 	timer3_ocr_counter_counter = (timer3_ocr_counter_counter + 1) % TIMER3_OCR_MOV_RATE;
 	if (timer3_ocr_counter_counter == 0) {
@@ -554,12 +581,14 @@ ISR(TIMER3_COMPA_vect) {
 			} else {
 				SET_ZERO(PORTE, PORTE0);
 			}
+			TWI_watchdog++;
 		}
 	}
 }
 
 // TWI control / IR camera
 ISR(TWI0_vect) {
+	TWI_watchdog = 0;
 	// UART_send('x');
 	// snprintf(uart_buf, sizeof(uart_buf), "error: %hu\n", TWI_state);
 	// UART_putstring(uart_buf);
