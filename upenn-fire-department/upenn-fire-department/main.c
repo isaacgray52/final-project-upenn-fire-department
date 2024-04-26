@@ -30,8 +30,8 @@ uint16_t echoEndTime = 0;
 
 bool servoOutputOn = false;
 
-uint8_t servoHighTime = 50;
-uint8_t servoLowTime = 50;
+uint8_t servoHighTime = 170;
+uint8_t servoLowTime = 115;
 
 bool triggerPulled = true;
 
@@ -135,14 +135,20 @@ void initialize(void) {
 	SET_ZERO(DDRC, DDRC1); // BL
 	SET_ZERO(DDRC, DDRC2); // FR
 	SET_ZERO(DDRC, DDRC3); // BR
+	SET_ZERO(DDRB, DDRB1); // Autonomous
+	SET_ZERO(DDRB, DDRB2); // Manual trigger
 
 	/** FEATHER INTERRUPTS **/
+
+	// Enable pin change interrupt
 	SET_ONE(PCICR, PCIE1);
 
+	// Enable it for appropriate (feather input) pins
 	SET_ONE(PCMSK1, PCINT8);
 	SET_ONE(PCMSK1, PCINT9);
 	SET_ONE(PCMSK1, PCINT10);
 	SET_ONE(PCMSK1, PCINT11);
+
 	
 	/** TIMER 0 **/
 	
@@ -166,6 +172,7 @@ void initialize(void) {
     // SET_ONE(TCCR0A, COM0A0);
 
     OCR0A = 200;
+
 	
 	/** TIMER 1 **/
 	
@@ -191,7 +198,7 @@ void initialize(void) {
 	
 	// Set overflow interrupt enable
 	SET_ONE(TIMSK1, TOIE1);
-	
+
 	
 	/** TIMER 2 **/
 	
@@ -274,7 +281,7 @@ int main(void)
     while (1) 
     {
 		if (TWI_state == SEND_MESSAGE) {
-			// UART_sensd('y');
+			// UART_send('y');
 			if (!TWI_first_time) {
 				if (temperature_idx == 63 && TWI_read_high_byte) {
 					temperature_max = 0;
@@ -292,7 +299,7 @@ int main(void)
 					// UART_putstring(uart_buf);
 					fire_detected = temperature_max > FIRE_THRESHOLD;
 					if (fire_detected) {
-						// UART_send('F');
+						UART_send('F');
 					}
 					// while (!(TWCR0 & (1 << TWINT)));
 				}
@@ -311,8 +318,9 @@ int main(void)
 			// UART_putstring(uart_buf);
 			TWCR0 = (1 << TWINT) | (1 << TWSTA) | (1 << TWEN) | (1 << TWIE); // send start
 		}
+		autonomous = false;//GET_BIT(PINB, PINB1);
 		handleMoveLogic();
-		counter = (counter + 1) % 20000;
+		counter = (counter + 1) % 65000;
 		if (counter == 0) {
 			if (fire_detected) {
 				if (outputCounter2 == 0) {
@@ -321,23 +329,29 @@ int main(void)
 			}
 			if (GOOD_FIRE_DIS) {
 				if (outputCounter2 == 0) {
-					// UART_putstring("Ready to fire!\n");
+					// UART_putstring("Good fire distance!\n");
 				}
 			}
-			if (fire_detected && GOOD_FIRE_DIS) {
+			if ((2 <= temperature_max_col) && (temperature_max_col <= 5)) {
+				if (outputCounter2 == 0) {
+					// UART_putstring("Aimed!\n");
+				}
+			}
+			if ((autonomous && fire_detected && GOOD_FIRE_DIS && (2 <= temperature_max_col) && (temperature_max_col <= 5))
+			|| (!autonomous && GET_BIT(PINB, PINB2) && US_avg > MIN_FIRE_DIS_US)) {
 				if (outputCounter2 == 0) {
 					// UART_putstring("Firing!\n");
 				}
 				if (triggerPulled) {
-					servoHighTime = 70;
-					servoLowTime = 35;
+					servoHighTime = 170;
+					servoLowTime = 115;
 				} else {
-					servoHighTime = 50;
-					servoLowTime = 50;
+					servoHighTime = 140;
+					servoLowTime = 100;
 				}
 				triggerPulled = !triggerPulled;
 			}
-			outputCounter2 = (outputCounter2 + 1) % 50;
+			outputCounter2 = (outputCounter2 + 1) % 10;
 		}
     }
 }
@@ -388,7 +402,7 @@ void handleMoveLogic(void) {
 			}
 		}
 	} else {
-		if (GET_BIT(PINC, PINC0) && GOOD_DRIVE_DIS) { // FL
+		if (GET_BIT(PINC, PINC0) && GOOD_DRIVE_DIS) { // FL //  
 			// UART_putstring("FL\t");
 			SET_ONE(PORTB, PORTB4);
 			SET_ZERO(PORTB, PORTB5);
@@ -401,7 +415,7 @@ void handleMoveLogic(void) {
 			SET_ZERO(PORTB, PORTB4);
 			SET_ZERO(PORTB, PORTB5);
 		}
-		if (GET_BIT(PINC, PINC2) && GOOD_DRIVE_DIS) { // FR
+		if (GET_BIT(PINC, PINC2) && GOOD_DRIVE_DIS) { // FR //  
 			// UART_putstring("FR\n");
 			SET_ONE(PORTD, PORTD3);
 			SET_ZERO(PORTD, PORTD4);
@@ -464,7 +478,7 @@ ISR(TIMER1_CAPT_vect) {
 		US_avg = US_avg / US_AVG_NUM_VALS;
 		outputCounter = (outputCounter + 1) % 100;
 		
-		uint16_t cm = US_avg / 58;
+		// uint16_t cm = US_avg / 58;
 		if (outputCounter == 0) {
 			//snprintf(message, 100, "pressTime=%5u \tendTime=%5u \toverflows=%2u \tdiffUS=%5lu \tcm=%3lu \tin=%3lu\n", echoStartTime, echoEndTime, echoOverflows, diffUS, diffUS / 58, diffUS / 148);
 			// snprintf(uart_buf, sizeof(uart_buf), "US_avg=%5lu \tcm=%3u\n", US_avg, cm);
@@ -488,9 +502,17 @@ ISR(TIMER1_CAPT_vect) {
 ISR(TIMER1_OVF_vect) {
 	echoOverflows++;
 	if (trigSent && echoOverflows > 5 && (!echoStarted)) {
-		// UART_send('X');
+		UART_send('X');
 		trigSent = false; // resend trig
 		echoOverflows = 0;
+		// uint32_t diffUS = 6000;
+		// US_avg_values[US_avg_idx] = diffUS;
+		// US_avg_idx = (US_avg_idx + 1) % US_AVG_NUM_VALS;
+		// US_avg = 0;
+		// for (int i = 0; i < US_AVG_NUM_VALS; i++) {
+	 	// 	US_avg += US_avg_values[i];
+		// }
+		// US_avg = US_avg / US_AVG_NUM_VALS;
 	}
 }
 
