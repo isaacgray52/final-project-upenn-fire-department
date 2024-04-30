@@ -177,6 +177,7 @@ If you’ve never made a Github pages website before, you can follow this webpag
 ### 3. Results
 
 What were your results? Namely, what was the final solution/design to your problem?
+Our final project was similar to what we had planned to make in the beginning. We had two modes auto and manual. in auto mode the bot essentially probed for fires traversing the entire space it was in. The algorithim that we used for this was quite simple. We had the bot go forward until the ultrasonic sensor saw something a foot away and then it turned to the right for 200ms and it would keep going forward. When it saw heat on the infared sensor above the threshold set in code (for fires we were using 100 degrees celcius as a threshold). the bot would stop immediately so it would stay centered and then begin to fire water using a water pistol with a servo motor attached to the trigger. This would happen until the heat went below the threshold and it would go back to its roaming state. In manual mode we were able to control the bot using the blynk dashboard. For maximum manuveriability we used tank controls so each wheel could be individually controlled to go backwards or forwards. The infared sensor would still automatically stop and shoot fire if it saw it. We wanted to add a manual fire button but we would have needed to purchase a premium blynk subscription for this which we didn't want to waste our budget on when functionality was maintained without it. We did include a button for switching from auto to manual and back. On startup the bot would automatically start in manual mode and we could flip it back and forth in the blynk dashboard between the two settings. In our demo the bot worked exactly as expected and was able to sense hot water (used as a subsitute for a flame) and shoot the cold water it had stored to cool it down completely autonomously.
 
 #### 3.1 Software Requirements Specification (SRS) Results
 
@@ -185,6 +186,40 @@ Based on your quantified system performance, comment on how you achieved or fell
 #### 3.2 Hardware Requirements Specification (HRS) Results
 
 Based on your quantified system performance, comment on how you achieved or fell short of your expected hardware requirements. You should be quantifying this, using measurement tools to collect data.
+
+These are our hardware requirements that we created before starting our project. We will go through each one and evaluate how well, if at all, the requirement was achieved. 
+**definitions for reference** 
+* MT = Motors used to drive
+* MC = Microcontroller
+* RC = Remote Communication
+* TI = Thermal Imaging
+* US = Ultrasonic sensor
+* WT = Water turret (and the motors used to drive it)
+* WG = Water gun (and the motor used to fire it)
+* WP = Waterproofing (shell for other means)
+
+HRS 01 - 'MT shall be controlled through driving circuit, which is in turn shall be driven by MC'
+
+This was achieved by using a prebuilt motor driver, the katzbot. This allowed us to only need to control the motor signal with out ATMEGA. This allowed us to not have to worry about the actual motor drive which would have been much more difficult and outside the scope of the class. 
+
+HRS 02 - 'RC shall be provided by Feather ESP32 or other means, connected to MC'
+This was also acheived. We used the blynk dashboard along with an esp32 feather to wirelessly communicate between a "home base" (a laptop or phone) and the bot. From there we connected the ESP32 to a level shifter which then wento the the ATEMEGA and we drove the motor using pin change interrupts from those inputs. 
+
+HRS 03 - 'TI shall be provided by camera, which should be cheap and low resolution'
+This we also acheived using a AMG8833 infared camera which wasn't super cheap but it was within budget at ~45 dollars. it was realtively low resolution but worked perfectly for our purposes. it was 64 pixels but had a relatively narrow field of view, so for what it could see it was detailed enough to sense large areas of heat which is what we were scanning for. 
+
+HRS 04 - 'TI shall be connected to MC, and communicate through SPI'
+
+Here our final project slightly differed from 
+HRS 05 - 'TI shall be mounted to front of device, or should be mounted to WT'
+
+HRS 06 - 'US shall be mounted to front of device, or optionally to mounted to WT'
+
+HRS 07 - 'WT shall provide method of yaw rotation of WG'
+
+HRS 08 - 'WT should provide method of pitch rotation of WG, or WG should be controllable in distace'
+
+HRS 09 - 'WP shall provide protection of MT, MC, RC, TI, and US from liquids shot by WG'
 
 ### 4. Conclusion
 
